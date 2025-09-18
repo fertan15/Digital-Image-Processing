@@ -285,25 +285,21 @@
         </div>
     </div>
     <div class="container">
-        <!-- Input Grid -->
         <div class="grid-container">
             <h2>Grid Input 7x7</h2>
             <div id="input-grid" class="grid"></div>
         </div>
         
-        <!-- Output Grid -->
         <div class="grid-container">
             <h2>Grid Output 7x7</h2>
             <div id="output-grid" class="grid"></div>
         </div>
     </div>
     
-    <!-- Calculation Display -->
     <div id="calculation-box">
         Klik pada piksel di Grid Output untuk melihat perhitungan dan jendela yang sesuai.
     </div>
     
-    <!-- Button Group -->
     <div class="button-group">
         <button onclick="resetGrids()">
             <i class="fas fa-sync-alt"></i> Reset Grid
@@ -463,12 +459,6 @@
                         kernelY = kernels['sobel-y'];
                     }
                     
-                    if (filterType === 'highpass') {
-                        kernelX = kernels['highpass'];
-                    } else if (filterType === 'lowpass') {
-                        kernelX = kernels['lowpass'];
-                    }
-                    
                     let convolutionResult = 0;
                     
                     for (let r = 0; r < filterSize; r++) {
@@ -480,9 +470,11 @@
                             const inputValue = parseFloat(inputCells[wrappedRow * GRID_SIZE + wrappedCol].value);
                             
                             if (!isNaN(inputValue)) {
-                                if (filterType === 'highpass' || filterType === 'lowpass' || filterType === 'highboost') {
+                                if (filterType === 'highpass' || filterType === 'lowpass') {
                                     const weight = kernelX[r][c];
                                     convolutionResult += inputValue * weight;
+                                } else if (filterType === 'highboost') {
+                                     // Special handling for highboost - we'll calculate it later
                                 } else {
                                     const weightX = kernelX[r][c];
                                     const weightY = kernelY[r][c];
@@ -497,11 +489,19 @@
                         result = convolutionResult;
                         calculationString = `Formula: Sum(${windowValues.join(' $\\times$ Kernel, ')}) <br> Hasil: ${result.toFixed(2)}`;
                     } else if (filterType === 'highboost') {
-                        const highpassValue = convolutionResult;
+                        // Calculate low-pass value for high-boost
+                        const sum = windowValues.reduce((a, b) => a + b, 0);
+                        const lowpassResult = windowValues.length > 0 ? (sum / windowValues.length) : 0;
                         const originalValue = parseFloat(inputCells[i].value);
                         const A = parseFloat(highboostFactorInput.value);
+
+                        // High-pass value is Original - Low-pass
+                        const highpassValue = originalValue - lowpassResult;
+                        
+                        // Apply the High-boost formula
                         result = originalValue + (A - 1) * highpassValue;
-                        calculationString = `Original: ${originalValue}<br>High-pass output: ${highpassValue.toFixed(2)}<br>Formula: $Original + (A-1) \\times High-pass$<br> ${originalValue} + (${A}-1) \\times ${highpassValue.toFixed(2)} = ${result.toFixed(2)}`;
+                        
+                        calculationString = `Original: ${originalValue.toFixed(2)}<br>Low-pass: ${lowpassResult.toFixed(2)}<br>High-pass: ${highpassValue.toFixed(2)}<br>Formula: $Original + (A-1) \\times High-pass$<br> ${originalValue.toFixed(2)} + (${A}-1) \\times ${highpassValue.toFixed(2)} = ${result.toFixed(2)}`;
                     } else if (filterType === 'prewitt' || filterType === 'sobel') {
                         result = Math.sqrt(Math.pow(Gx, 2) + Math.pow(Gy, 2));
                         calculationString = `Gx: ${Gx.toFixed(2)}<br>Gy: ${Gy.toFixed(2)}<br>Magnitude: $\\sqrt{${Gx.toFixed(2)}^2 + ${Gy.toFixed(2)}^2} = ${result.toFixed(2)}`;
