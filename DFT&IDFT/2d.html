@@ -9,7 +9,32 @@
     window.MathJax = { tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] }, svg: { fontCache: 'global' } };
   </script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <style> body { background-color: #f0f4f8; } </style>
+  <style> 
+    body { background-color: #f0f4f8; } 
+    .result-grid {
+        display: grid;
+        gap: 0.5rem;
+        padding: 0.5rem;
+    }
+    .grid-cell {
+        width: 100%;
+        padding: 0.5rem;
+        background-color: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-family: monospace;
+        text-align: center;
+        color: #1f2937;
+    }
+    .grid-cell-clickable {
+        cursor: pointer;
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    .grid-cell-clickable:hover {
+        background-color: #dbeafe;
+        border-color: #60a5fa;
+    }
+  </style>
 </head>
 <body>
   <div id="root">
@@ -54,7 +79,7 @@
   </div>
 
 <script>
-// --- UTILITY CLASSES AND FUNCTIONS (COPIED FROM 1D) ---
+// --- UTILITY CLASSES AND FUNCTIONS ---
 const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
 const reduceFraction = (numerator, denominator) => {
     if (denominator === 0) return [numerator, denominator];
@@ -111,41 +136,37 @@ const parseComplexString = (s) => {
     if (realMatch) return new Complex(parseFloat(s), 0);
     return null;
 };
-// --- 1D CALCULATION LOGIC (COPIED FROM 1D for detailed steps) ---
-const generateDFTCalculation = (signal) => {
-    const M = signal.length;
-    if (M === 0) return { steps: [], result: [], signal };
-    const steps = []; const finalResult = [];
+
+// --- 1D CALCULATION GENERATORS (FOR SEPARABILITY STEPS) ---
+const generateDFT1DCalculation = (signal) => {
+    // ... (This function remains the same as previous version)
+    const M = signal.length; const steps = []; const finalResult = [];
     for (let u = 0; u < M; u++) {
         let step = { u, title: `Langkah untuk u = ${u}` }; let finalValue = new Complex(0, 0);
-        let formulaStr = `$$ F(${u}) = \\sum_{x=0}^{${M-1}} f(x) \\cdot e^{\\frac{-i2\\pi u x}{${M}}} $$`;
-        let expansion = '', substitution = '', euler = '', trigValues = '', simplification = '';
+        step.formula = `$$ F(${u}) = \\sum_{x=0}^{${M-1}} f(x) \\cdot e^{\\frac{-i2\\pi u x}{${M}}} $$`;
+        let substitution = '', simplification = '';
         for (let x = 0; x < M; x++) {
             const theta = (-2 * Math.PI * u * x) / M;
             const expTerm = Complex.fromEuler(theta);
             const term = expTerm.multiplyScalar(signal[x]);
             finalValue = finalValue.add(term);
-            const [num, den] = reduceFraction(-2*u*x, M);
-            let frac = den === 1 ? `${num}i\\pi` : `\\frac{${num}i\\pi}{${den}}`;
-            expansion += `f(${x})e^{${frac}}`;
-            substitution += `${signal[x]}(e^{${frac}})`;
+            substitution += `${signal[x]}(${expTerm.toString(3)})`;
             simplification += `(${term.toString()})`;
-            if (x < M-1) { expansion += ' + '; substitution += ' + '; simplification += ' + '; }
+            if (x < M - 1) { substitution += ' + '; simplification += ' + '; }
         }
-        step.formula = formulaStr; step.expansion = `$$ = ${expansion} $$`;
-        step.substitution = `$$ = ${substitution} $$`; step.simplification = `$$ = ${simplification} $$`;
+        step.substitution = `$$ = ${substitution} $$`;
+        step.simplification = `$$ = ${simplification} $$`;
         step.result = `$$ F(${u}) = ${finalValue.toString()} $$`;
         steps.push(step); finalResult.push(finalValue);
     }
     return { steps, result: finalResult, signal };
 };
-const generateDFT1DComplexCalculation = (signal, varName = 'F') => {
-    const M = signal.length;
-    if (M === 0) return { steps: [], result: [], signal };
-    const steps = []; const finalResult = [];
+const generateDFT1DComplexCalculation = (signal, varNameF = 'F', varNamef = 'f') => {
+    // ... (This function remains the same as previous version)
+    const M = signal.length; const steps = []; const finalResult = [];
     for (let u = 0; u < M; u++) {
         let step = { u, title: `Langkah untuk u = ${u}` }; let finalValue = new Complex(0, 0);
-        let formulaStr = `$$ ${varName}(${u}) = \\sum_{x=0}^{${M-1}} f(x) \\cdot e^{\\frac{-i2\\pi u x}{${M}}} $$`;
+        step.formula = `$$ ${varNameF}(${u}) = \\sum_{x=0}^{${M-1}} ${varNamef}(x) \\cdot e^{\\frac{-i2\\pi u x}{${M}}} $$`;
         let substitution = '', simplification = '';
         for (let x = 0; x < M; x++) {
             const theta = (-2 * Math.PI * u * x) / M;
@@ -156,21 +177,19 @@ const generateDFT1DComplexCalculation = (signal, varName = 'F') => {
             simplification += `(${term.toString()})`;
             if (x < M - 1) { substitution += ' + '; simplification += ' + '; }
         }
-        step.formula = formulaStr;
         step.substitution = `$$ = ${substitution} $$`;
         step.simplification = `$$ = ${simplification} $$`;
-        step.result = `$$ ${varName}(${u}) = ${finalValue.toString()} $$`;
+        step.result = `$$ ${varNameF}(${u}) = ${finalValue.toString()} $$`;
         steps.push(step); finalResult.push(finalValue);
     }
     return { steps, result: finalResult, signal };
 };
 const generateIDFT1DComplexCalculation = (signal, scaleFactor) => {
-    const M = signal.length;
-    if (M === 0) return { steps: [], result: [], signal };
-    const steps = []; const finalResult = [];
+    // ... (This function remains the same as previous version)
+    const M = signal.length; const steps = []; const finalResult = [];
     for (let x = 0; x < M; x++) {
         let step = { x, title: `Langkah untuk x = ${x}` }; let finalValue = new Complex(0, 0);
-        let formulaStr = `$$ f(${x}) = \\frac{1}{${M}} \\sum_{u=0}^{${M-1}} F(u) \\cdot e^{\\frac{i2\\pi ux}{${M}}} $$`;
+        step.formula = `$$ f(${x}) = \\frac{1}{${M}} \\sum_{u=0}^{${M-1}} F(u) \\cdot e^{\\frac{i2\\pi ux}{${M}}} $$`;
         let substitution = '', simplification = '';
         for (let u = 0; u < M; u++) {
             const theta = (2 * Math.PI * u * x) / M;
@@ -179,123 +198,406 @@ const generateIDFT1DComplexCalculation = (signal, scaleFactor) => {
             finalValue = finalValue.add(term);
             substitution += `(${signal[u].toString()})(${expTerm.toString(3)})`;
             simplification += `(${term.toString()})`;
-            if (u < M-1) { substitution += ' + '; simplification += ' + '; }
+            if (u < M - 1) { substitution += ' + '; simplification += ' + '; }
         }
-        step.formula = formulaStr;
         step.substitution = `$$ f_{unscaled}(${x}) = ${substitution} $$`;
         step.simplification = `$$ = ${simplification} = ${finalValue.toString()} $$`;
         const scaledFinalValue = finalValue.multiplyScalar(scaleFactor);
-        if(scaleFactor !== 1) {
-            step.result = `$$ f(${x}) = ${scaleFactor.toFixed(2)} \\times ${finalValue.toString()} = ${scaledFinalValue.toString()} $$`;
+        if (Math.abs(scaleFactor - 1) > 1e-9) {
+            step.result = `$$ f(${x}) = ${scaleFactor.toFixed(3)} \\times ${finalValue.toString()} = ${scaledFinalValue.toString()} $$`;
         } else {
-             step.result = `$$ f(${x}) = ${finalValue.toString()} $$`;
+            step.result = `$$ f(${x}) = ${finalValue.toString()} $$`;
         }
         steps.push(step); finalResult.push(scaledFinalValue);
     }
     return { steps, result: finalResult, signal };
 };
 
-// --- 2D CALCULATION LOGIC ---
-const dft1D = (signal) => {
-    const M = signal.length; const result = [];
-    for (let u = 0; u < M; u++) {
-        let sum = new Complex(0, 0);
-        for (let x = 0; x < M; x++) {
-            const signalVal = typeof signal[x] === 'number' ? new Complex(signal[x], 0) : signal[x];
-            const theta = (-2 * Math.PI * u * x) / M;
-            const expTerm = Complex.fromEuler(theta);
-            sum = sum.add(signalVal.multiply(expTerm));
-        }
-        result.push(sum);
-    }
-    return result;
-};
-const idft1D = (signal, scale = true) => {
-    const M = signal.length; const result = [];
-    for (let x = 0; x < M; x++) {
-        let sum = new Complex(0, 0);
-        for (let u = 0; u < M; u++) {
-            const theta = (2 * Math.PI * u * x) / M;
-            const expTerm = Complex.fromEuler(theta);
-            sum = sum.add(signal[u].multiply(expTerm));
-        }
-        result.push(scale ? sum.multiplyScalar(1 / M) : sum);
-    }
-    return result;
-};
+// --- 2D CALCULATION ORCHESTRATORS ---
 const transpose = (matrix) => matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+const generateDFT2DCalculation = (matrix) => {
+    // ... (This function remains the same as previous version)
+    const M = matrix.length; const N = matrix[0].length;
+    const rowSteps = [];
+    for(let i=0; i<M; i++) { rowSteps.push(generateDFT1DCalculation(matrix[i])); }
+    const intermediateMatrix = rowSteps.map(step => step.result);
+    const intermediateTransposed = transpose(intermediateMatrix);
+    const colSteps = [];
+    for(let i=0; i<N; i++){ colSteps.push(generateDFT1DComplexCalculation(intermediateTransposed[i], 'F', "F'")); }
+    const finalTransposed = colSteps.map(step => step.result);
+    const finalResult = transpose(finalTransposed);
+    return { signal: matrix, rowSteps, intermediateMatrix, colSteps, finalResult };
+};
+const generateIDFT2DCalculation = (matrix) => {
+    // ... (This function remains the same as previous version)
+    const M = matrix.length; const N = matrix[0].length;
+    const rowSteps = [];
+    for(let i=0; i<M; i++) { rowSteps.push(generateIDFT1DComplexCalculation(matrix[i], 1)); }
+    const intermediateMatrix = rowSteps.map(step => step.result);
+    const intermediateTransposed = transpose(intermediateMatrix);
+    const colSteps = [];
+    const scaleFactor = 1 / (M * N);
+    for(let i=0; i<N; i++){ colSteps.push(generateIDFT1DComplexCalculation(intermediateTransposed[i], scaleFactor)); }
+    const finalTransposed = colSteps.map(step => step.result);
+    const finalResult = transpose(finalTransposed);
+    return { signal: matrix, rowSteps, intermediateMatrix, colSteps, finalResult, scaleFactor };
+};
 
-// --- DOM AND RENDERING ---
-// ... (All DOM manipulation code will go here, starting from document.addEventListener)
+// --- [NEW] MODAL CALCULATION (DIRECT & DETAILED FORMULA) ---
+const generateDFT2DCellCalculation = (matrix, u, v) => {
+    const M = matrix.length; const N = matrix[0].length;
+    let finalValue = new Complex(0, 0);
+    const termSteps = [];
+    const termResults = [];
+
+    for (let x = 0; x < M; x++) {
+        for (let y = 0; y < N; y++) {
+            const theta = 2 * Math.PI * ((u * x / M) + (v * y / N));
+            const expTerm = Complex.fromEuler(-theta); // e^(-i*theta)
+            const termValue = expTerm.multiplyScalar(matrix[x][y]);
+            finalValue = finalValue.add(termValue);
+            termResults.push(termValue);
+            
+            termSteps.push({
+                title: `Suku untuk f(${x}, ${y}):`,
+                theta_calc: `$$ \\theta = 2\\pi (\\frac{${u} \\cdot ${x}}{${M}} + \\frac{${v} \\cdot ${y}}{${N}}) = ${theta.toFixed(4)} $$`,
+                euler_calc: `$$ f(${x},${y}) \\cdot e^{-i\\theta} = ${matrix[x][y]} \\cdot (\\cos(${theta.toFixed(4)}) - i\\sin(${theta.toFixed(4)})) $$`,
+                trig_values: `$$ = ${matrix[x][y]} \\cdot (${Math.cos(theta).toFixed(4)} - i${Math.sin(theta).toFixed(4)}) $$`,
+                term_result: `$$ = ${termValue.toString()} $$`
+            });
+        }
+    }
+
+    const finalStep = {
+        title: "Penjumlahan Semua Suku:",
+        summation: `$$ F(${u}, ${v}) = ${termResults.map(t => `(${t.toString()})`).join(' + ')} $$`,
+        result: `$$ F(${u}, ${v}) = ${finalValue.toString()} $$`
+    };
+
+    return {
+        formula: `$$ F(${u}, ${v}) = \\sum_{x=0}^{${M-1}} \\sum_{y=0}^{${N-1}} f(x, y) e^{-i2\\pi (\\frac{ux}{M} + \\frac{vy}{N})} $$`,
+        termSteps: termSteps,
+        finalStep: finalStep
+    };
+};
+
+const generateIDFT2DCellCalculation = (matrix, final_x, final_y) => {
+    const M = matrix.length; const N = matrix[0].length;
+    let finalValue = new Complex(0, 0);
+    const termSteps = [];
+    const termResults = [];
+
+    for (let u = 0; u < M; u++) {
+        for (let v = 0; v < N; v++) {
+            const theta = 2 * Math.PI * ((u * final_x / M) + (v * final_y / N));
+            const expTerm = Complex.fromEuler(theta); // e^(+i*theta)
+            const termValue = matrix[u][v].multiply(expTerm);
+            finalValue = finalValue.add(termValue);
+            termResults.push(termValue);
+
+            termSteps.push({
+                title: `Suku untuk F(${u}, ${v}):`,
+                theta_calc: `$$ \\theta = 2\\pi (\\frac{${u} \\cdot ${final_x}}{${M}} + \\frac{${v} \\cdot ${final_y}}{${N}}) = ${theta.toFixed(4)} $$`,
+                euler_calc: `$$ F(${u},${v}) \\cdot e^{i\\theta} = (${matrix[u][v].toString()}) \\cdot (\\cos(${theta.toFixed(4)}) + i\\sin(${theta.toFixed(4)})) $$`,
+                trig_values: `$$ = (${matrix[u][v].toString()}) \\cdot (${Math.cos(theta).toFixed(4)} + i${Math.sin(theta).toFixed(4)}) $$`,
+                term_result: `$$ = ${termValue.toString()} $$`
+            });
+        }
+    }
+
+    const scaledResult = finalValue.multiplyScalar(1 / (M * N));
+    const finalStep = {
+        title: "Penjumlahan dan Penskalaan Akhir:",
+        summation: `$$ f_{unscaled}(${final_x}, ${final_y}) = ${termResults.map(t => `(${t.toString()})`).join(' + ')} = ${finalValue.toString()} $$`,
+        result: `$$ f(${final_x}, ${final_y}) = \\frac{1}{${M*N}} \\cdot (${finalValue.toString()}) = ${scaledResult.toString()} $$`
+    };
+    
+    return {
+        formula: `$$ f(x, y) = \\frac{1}{MN} \\sum_{u=0}^{${M-1}} \\sum_{v=0}^{${N-1}} F(u, v) e^{i2\\pi (\\frac{u x}{M} + \\frac{v y}{N})} $$`,
+        termSteps: termSteps,
+        finalStep: finalStep
+    };
+};
+
+
+// --- DOM Manipulation & Event Handling ---
 document.addEventListener('DOMContentLoaded', () => {
-    // This will be a large section handling all the UI logic for 2D.
-    // Due to its length, it's provided in the complete file above.
-    // The core idea is to call the `generate...Calculation` functions
-    // and then build HTML strings to display the detailed steps.
+    // ... (Code for switchTab, renderDFT2D, renderIDFT2D, renderMatrixInput, getMatrixData is the same)
+    const tabs = { dft2d: document.getElementById('tab-dft2d'), idft2d: document.getElementById('tab-idft2d') };
+    const contents = { dft2d: document.getElementById('content-dft2d'), idft2d: document.getElementById('content-idft2d') };
+    let activeTab = 'dft2d';
+    let idft2dInitialInput = null;
+
+    function switchTab(tabId) {
+        Object.values(tabs).forEach(tab => {
+            tab.classList.remove('bg-blue-600', 'text-white');
+            tab.classList.add('text-gray-600', 'hover:bg-gray-200');
+        });
+        tabs[tabId].classList.add('bg-blue-600', 'text-white');
+        tabs[tabId].classList.remove('text-gray-600', 'hover:bg-gray-200');
+        Object.values(contents).forEach(content => content.classList.add('hidden'));
+        contents[tabId].classList.remove('hidden');
+        activeTab = tabId;
+        renderContent();
+    }
+
+    Object.keys(tabs).forEach(tabId => tabs[tabId].addEventListener('click', () => switchTab(tabId)));
+
+    function renderContent() {
+        if (activeTab === 'dft2d') renderDFT2D();
+        if (activeTab === 'idft2d') renderIDFT2D(idft2dInitialInput);
+    }
+    
+    function renderDFT2D() {
+        contents.dft2d.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Sinyal 2D / Domain Spasial (Input)</h2>
+            <form id="dft2d-form" class="mt-4 space-y-4">
+                <div id="matrix-input-grid-container-dft2d"></div>
+                <p id="dft2d-error" class="text-red-600 text-sm mt-2"></p>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Hitung DFT 2D</button>
+            </form>
+        </div>
+        <div id="dft2d-calculation-output"></div>`;
+        renderMatrixInput('dft2d', 2, 2);
+        document.getElementById('dft2d-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const { matrixData, error } = getMatrixData('dft2d', false);
+            const errorEl = document.getElementById('dft2d-error');
+            const outputEl = document.getElementById('dft2d-calculation-output');
+            errorEl.textContent = ''; outputEl.innerHTML = '';
+            if (error) { errorEl.textContent = error; return; }
+            const calculationData = generateDFT2DCalculation(matrixData);
+            displayDFT2DResults(calculationData, outputEl);
+            MathJax.typeset();
+        });
+    }
+
+    function renderIDFT2D(initialInput = null) {
+        contents.idft2d.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Sinyal Domain Frekuensi 2D (Input)</h2>
+            <form id="idft2d-form" class="mt-4 space-y-4">
+                <div id="matrix-input-grid-container-idft2d"></div>
+                <p id="idft2d-error" class="text-red-600 text-sm mt-2"></p>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Hitung IDFT 2D</button>
+            </form>
+        </div>
+        <div id="idft2d-calculation-output"></div>`;
+        const rows = initialInput ? initialInput.length : 2;
+        const cols = initialInput ? initialInput[0].length : 2;
+        renderMatrixInput('idft2d', rows, cols, initialInput);
+        document.getElementById('idft2d-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const { matrixData, error } = getMatrixData('idft2d', true);
+            const errorEl = document.getElementById('idft2d-error');
+            const outputEl = document.getElementById('idft2d-calculation-output');
+            errorEl.textContent = ''; outputEl.innerHTML = '';
+            if (error) { errorEl.textContent = error; return; }
+            const calculationData = generateIDFT2DCalculation(matrixData);
+            displayIDFT2DResults(calculationData, outputEl);
+            MathJax.typeset();
+        });
+        if (initialInput) document.getElementById('idft2d-form').dispatchEvent(new Event('submit'));
+    }
+
+    function renderMatrixInput(type, rows, cols, initialData = null) {
+        const containerId = `matrix-input-grid-container-${type}`;
+        const container = document.getElementById(containerId);
+        let gridHtml = '';
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const value = initialData ? initialData[r][c].toString() : (type === 'dft2d' ? `${r*cols + c + 1}` : '');
+                gridHtml += `<input type="text" value="${value}" class="cell-${type} w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded-md font-mono text-white text-center">`;
+            }
+        }
+        container.innerHTML = `
+            <div class="flex items-center space-x-6">
+                <label>Baris: <input type="number" id="rows-${type}" value="${rows}" min="1" class="w-16 p-1 bg-gray-800 text-white text-center rounded"></label>
+                <label>Kolom: <input type="number" id="cols-${type}" value="${cols}" min="1" class="w-16 p-1 bg-gray-800 text-white text-center rounded"></label>
+                <button type="button" id="randomize-${type}" class="bg-indigo-500 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-600">Acak</button>
+            </div>
+            <div id="grid-${type}" class="grid gap-2 overflow-x-auto p-2 mt-4" style="grid-template-columns: repeat(${cols}, minmax(80px, 1fr))">${gridHtml}</div>`;
+        
+        const rowsInput = document.getElementById(`rows-${type}`);
+        const colsInput = document.getElementById(`cols-${type}`);
+        rowsInput.addEventListener('change', () => renderMatrixInput(type, parseInt(rowsInput.value), parseInt(colsInput.value)));
+        colsInput.addEventListener('change', () => renderMatrixInput(type, parseInt(rowsInput.value), parseInt(colsInput.value)));
+        document.getElementById(`randomize-${type}`).addEventListener('click', () => {
+            document.querySelectorAll(`.cell-${type}`).forEach(cell => {
+                if (type === 'dft2d') {
+                    cell.value = Math.floor(Math.random() * 10);
+                } else {
+                    cell.value = new Complex(Math.floor(Math.random()*10)-5, Math.floor(Math.random()*10)-5).toString();
+                }
+            });
+        });
+    }
+
+    function getMatrixData(type, isComplex) {
+        const rows = parseInt(document.getElementById(`rows-${type}`).value);
+        const cols = parseInt(document.getElementById(`cols-${type}`).value);
+        const cells = document.querySelectorAll(`.cell-${type}`);
+        const matrixData = []; let error = null;
+        for (let r = 0; r < rows; r++) {
+            const row = [];
+            for (let c = 0; c < cols; c++) {
+                const cellValue = cells[r * cols + c].value;
+                if (isComplex) {
+                    const parsed = parseComplexString(cellValue);
+                    if (parsed === null) error = 'Format input kompleks tidak valid atau ada sel yang kosong.';
+                    row.push(parsed);
+                } else {
+                    const num = Number(cellValue);
+                    if (isNaN(num)) error = 'Semua sel harus berisi angka yang valid.';
+                    row.push(num);
+                }
+            }
+            matrixData.push(row);
+        }
+        return { matrixData, error };
+    }
+
+    function displayDFT2DResults(data, container) {
+        const { signal, rowSteps, intermediateMatrix, colSteps, finalResult } = data;
+        container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 1: Terapkan DFT 1D pada Setiap Baris</h2>
+            ${rowSteps.map((rowCalc, index) => `<div class="my-4 p-4 border rounded-lg bg-gray-50">
+                    <h3 class="font-semibold text-blue-700 text-xl mb-2">Perhitungan DFT 1D untuk Baris ${index}</h3>
+                    <p class="font-mono text-lg mb-4">Input: $f(${index}, y) = [${rowCalc.signal.join(', ')}]$</p>
+                    ${rowCalc.steps.map(step => `<div class="pl-4 border-l-2 ml-2 mb-2 text-sm overflow-x-auto">
+                            <p>${step.formula}</p><p>${step.substitution}</p><p>${step.simplification}</p><p class="font-bold pt-1">${step.result}</p>
+                        </div>`).join('')}
+                    <p class="font-mono text-lg mt-4 font-semibold">Hasil Baris ${index}: $[${rowCalc.result.map(c => c.toString()).join(', ')}]$</p>
+                </div>`).join('')}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Matriks Antara (Hasil Transformasi Baris)</h2>
+            ${renderGrid(intermediateMatrix, "Hasil setelah semua baris ditransformasi, dinotasikan $F'(u, y)$.")}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 2: Terapkan DFT 1D pada Setiap Kolom</h2>
+            ${colSteps.map((colCalc, index) => `<div class="my-4 p-4 border rounded-lg bg-gray-50">
+                    <h3 class="font-semibold text-blue-700 text-xl mb-2">Perhitungan DFT 1D untuk Kolom ${index}</h3>
+                     <p class="font-mono text-lg mb-4">Input: $[${colCalc.signal.map(c => c.toString()).join(', ')}]$</p>
+                     ${colCalc.steps.map(step => `<div class="pl-4 border-l-2 ml-2 mb-2 text-sm overflow-x-auto">
+                             <p>${step.formula}</p><p>${step.substitution}</p><p>${step.simplification}</p><p class="font-bold pt-1">${step.result}</p>
+                         </div>`).join('')}
+                     <p class="font-mono text-lg mt-4 font-semibold">Hasil Kolom ${index}: $[${colCalc.result.map(c => c.toString()).join(', ')}]$</p>
+                 </div>`).join('')}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 3: Hasil Akhir DFT 2D</h2>
+            <p class="mb-4 text-indigo-600">Klik pada sel di bawah untuk melihat rincian perhitungannya.</p>
+            ${renderGrid(finalResult, "Matriks Hasil Akhir (Spektrum Frekuensi 2D)", true, 'dft', signal)}
+            <button id="copy-to-idft2d" class="w-full mt-4 bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700">Salin sebagai Input IDFT 2D</button>
+        </div>`;
+        document.getElementById('copy-to-idft2d').addEventListener('click', () => { idft2dInitialInput = finalResult; switchTab('idft2d'); });
+    }
+
+    function displayIDFT2DResults(data, container) {
+        const { signal, rowSteps, intermediateMatrix, colSteps, finalResult, scaleFactor } = data;
+        container.innerHTML = `
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 1: Terapkan IDFT 1D pada Setiap Baris (Tanpa Penskalaan)</h2>
+            ${rowSteps.map((rowCalc, index) => `<div class="my-4 p-4 border rounded-lg bg-gray-50">
+                    <h3 class="font-semibold text-blue-700 text-xl mb-2">Perhitungan IDFT 1D untuk Baris ${index}</h3>
+                    <p class="font-mono text-lg mb-4">Input: $F(${index}, v) = [${rowCalc.signal.map(c=>c.toString()).join(', ')}]$</p>
+                    ${rowCalc.steps.map(step => `<div class="pl-4 border-l-2 ml-2 mb-2 text-sm overflow-x-auto"><p>${step.formula}</p><p>${step.substitution}</p><p>${step.simplification}</p><p class="font-bold pt-1">${step.result}</p></div>`).join('')}
+                    <p class="font-mono text-lg mt-4 font-semibold">Hasil Baris ${index}: $[${rowCalc.result.map(c => c.toString()).join(', ')}]$</p>
+                </div>`).join('')}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Matriks Antara</h2>
+            ${renderGrid(intermediateMatrix, "Hasil setelah transformasi baris.")}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 2: Terapkan IDFT 1D pada Setiap Kolom (Dengan Penskalaan 1/MN)</h2>
+            <p class="mb-4">Penskalaan akhir sebesar $1/${signal.length * signal[0].length} = ${scaleFactor.toFixed(3)}$ diterapkan pada langkah ini.</p>
+            ${colSteps.map((colCalc, index) => `<div class="my-4 p-4 border rounded-lg bg-gray-50">
+                    <h3 class="font-semibold text-blue-700 text-xl mb-2">Perhitungan IDFT 1D untuk Kolom ${index}</h3>
+                     <p class="font-mono text-lg mb-4">Input: $[${colCalc.signal.map(c=>c.toString()).join(', ')}]$</p>
+                     ${colCalc.steps.map(step => `<div class="pl-4 border-l-2 ml-2 mb-2 text-sm overflow-x-auto"><p>${step.formula}</p><p>${step.substitution}</p><p>${step.simplification}</p><p class="font-bold pt-1">${step.result}</p></div>`).join('')}
+                     <p class="font-mono text-lg mt-4 font-semibold">Hasil Kolom ${index}: $[${colCalc.result.map(c=>c.toString()).join(', ')}]$</p>
+                 </div>`).join('')}
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 3: Hasil Akhir IDFT 2D</h2>
+            <p class="mb-4 text-indigo-600">Klik pada sel di bawah untuk melihat rincian perhitungannya.</p>
+            ${renderGrid(finalResult, "Matriks Hasil Akhir (Sinyal Hasil Rekonstruksi)", true, 'idft', signal)}
+        </div>`;
+    }
+
+    function renderGrid(matrix, title, isClickable = false, type = '', originalSignal = null) {
+        const cols = matrix[0].length;
+        const gridCellsHtml = matrix.map((row, r) => row.map((v, c) => {
+            const content = typeof v === 'number' ? v.toFixed(2) : v.toString(2);
+            const clickableClass = isClickable ? 'grid-cell-clickable' : '';
+            const signalStr = isClickable ? `'${encodeURIComponent(JSON.stringify(originalSignal))}'` : '';
+            const onClickAttr = isClickable ? `onclick="showModal('${type}', ${r}, ${c}, ${signalStr})"` : '';
+            return `<div class="grid-cell ${clickableClass}" ${onClickAttr}>${content}</div>`;
+        }).join('')).join('');
+
+        return `
+            <div class="my-4">
+                <p class="font-semibold text-gray-700 text-xl mb-2">${title}</p>
+                <div class="result-grid bg-gray-200 border border-gray-300 rounded-lg" style="grid-template-columns: repeat(${cols}, 1fr);">
+                    ${gridCellsHtml}
+                </div>
+            </div>`;
+    }
+
+    window.showModal = (type, r, c, encodedSignal) => {
+        const signal = JSON.parse(decodeURIComponent(encodedSignal));
+        let modalData, title;
+        if (type === 'dft') {
+            modalData = generateDFT2DCellCalculation(signal, r, c);
+            title = `Detail Perhitungan DFT untuk F(${r}, ${c})`;
+        } else {
+            const complexSignal = signal.map(row => row.map(cell => new Complex(cell.real, cell.imag)));
+            modalData = generateIDFT2DCellCalculation(complexSignal, r, c);
+            title = `Detail Perhitungan IDFT untuk f(${r}, ${c})`;
+        }
+        
+        const modalBody = document.getElementById('modal-body');
+        let termStepsHtml = modalData.termSteps.map(step => `
+            <div class="mb-4 p-3 border-l-4 border-gray-300">
+                <h4 class="font-semibold text-gray-700 text-lg">${step.title}</h4>
+                <div class="text-gray-800 text-sm space-y-1 pl-2">
+                    <p>${step.theta_calc}</p>
+                    <p>${step.euler_calc}</p>
+                    <p>${step.trig_values}</p>
+                    <p class="font-bold">${step.term_result}</p>
+                </div>
+            </div>`).join('');
+        
+        modalBody.innerHTML = `
+            <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+                <h4 class="font-semibold text-blue-700 text-lg">Rumus Perhitungan</h4>
+                <p>${modalData.formula}</p>
+            </div>
+            ${termStepsHtml}
+            <div class="mt-4 p-4 border-t-2 border-blue-500 bg-blue-50 rounded-lg">
+                 <h4 class="font-semibold text-blue-800 text-xl">${modalData.finalStep.title}</h4>
+                 <div class="text-blue-900 space-y-2 overflow-x-auto">
+                    <p>${modalData.finalStep.summation}</p>
+                    <p class="text-2xl font-bold">${modalData.finalStep.result}</p>
+                 </div>
+            </div>
+        `;
+        
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal').classList.remove('hidden');
+        MathJax.typeset();
+    };
+
+    document.getElementById('modal-close').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
+    document.getElementById('modal').addEventListener('click', (e) => { if(e.target.id === 'modal') document.getElementById('modal').classList.add('hidden'); });
+
+    renderContent();
+    MathJax.typeset();
 });
 </script>
 </body>
 </html>
-
-<script>
-    function displayDFT2DResults(data, container) {
-    const { signal, rowSteps, intermediateMatrix, colSteps, finalResult } = data;
-    let html = `
-    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 1: Terapkan DFT 1D pada Setiap Baris</h2>
-        <p class="text-lg text-gray-700 mb-4">Kita akan menghitung DFT untuk setiap baris dari matriks input $f(x, y)$.</p>
-        ${rowSteps.map((rowCalc, index) => `
-            <div class="my-4 p-4 border rounded-lg bg-gray-50">
-                <h3 class="font-semibold text-blue-700 text-xl mb-2">Langkah 1.${String.fromCharCode(65 + index)}: Perhitungan DFT 1D untuk Baris ${index}</h3>
-                <p class="font-mono text-lg mb-4">Input: $f(${index}, y) = [${rowCalc.signal.join(', ')}]$</p>
-                ${rowCalc.steps.map(step => `
-                    <div class="pl-4 border-l-2 ml-2 mb-2">
-                        <p class="text-md">${step.formula}</p>
-                        <p class="text-md">${step.substitution}</p>
-                        <p class="text-md">${step.simplification}</p>
-                        <p class="font-bold text-md pt-1">${step.result}</p>
-                    </div>
-                `).join('')}
-                <p class="font-mono text-lg mt-4 font-semibold">Hasil Baris ${index}: $[${rowCalc.result.map(c => c.toString()).join(', ')}]$</p>
-            </div>
-        `).join('')}
-    </div>
-
-    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Matriks Antara (Hasil Transformasi Baris)</h2>
-        ${renderMatrix(intermediateMatrix, "Hasil setelah semua baris ditransformasi.", "F'(u, y)")}
-    </div>
-    
-    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 2: Terapkan DFT 1D pada Setiap Kolom</h2>
-        <p class="text-lg text-gray-700 mb-4">Selanjutnya, kita hitung DFT untuk setiap kolom dari matriks antara $F'(u, y)$. Untuk mempermudah, kita transposisikan matriksnya terlebih dahulu.</p>
-        ${renderMatrix(transpose(intermediateMatrix), "Matriks Antara Ditransposisi", "(F')^T")}
-
-        ${colSteps.map((colCalc, index) => `
-             <div class="my-4 p-4 border rounded-lg bg-gray-50">
-                <h3 class="font-semibold text-blue-700 text-xl mb-2">Langkah 2.${String.fromCharCode(65 + index)}: Perhitungan DFT 1D untuk Kolom ${index}</h3>
-                 <p class="font-mono text-lg mb-4">Input: $F'(u, ${index}) = [${colCalc.signal.map(c => c.toString()).join(', ')}]$</p>
-                 ${colCalc.steps.map(step => `
-                     <div class="pl-4 border-l-2 ml-2 mb-2">
-                         <p class="text-md">${step.formula}</p>
-                         <p class="text-md">${step.substitution}</p>
-                         <p class="text-md">${step.simplification}</p>
-                         <p class="font-bold text-md pt-1">${step.result}</p>
-                     </div>
-                 `).join('')}
-                 <p class="font-mono text-lg mt-4 font-semibold">Hasil Kolom ${index}: $[${colCalc.result.map(c => c.toString()).join(', ')}]$</p>
-             </div>
-        `).join('')}
-    </div>
-
-    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-4">Langkah 3: Hasil Akhir</h2>
-        <p class="text-lg text-gray-700 mb-4">Matriks hasil dari langkah 2 ditransposisikan kembali untuk mendapatkan spektrum frekuensi 2D akhir.</p>
-        ${renderMatrix(finalResult, "Matriks Hasil Akhir (Spektrum Frekuensi 2D)", "F(u, v)", true, 'dft', signal)}
-        <button id="copy-to-idft2d" class="w-full mt-4 bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700">Salin sebagai Input IDFT 2D</button>
-    </div>
-    `;
-    container.innerHTML = html;
-    // Add event listener for the copy button
-}
-</script>
